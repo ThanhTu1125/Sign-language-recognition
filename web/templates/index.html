@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Nhận diện Ngôn ngữ Ký hiệu</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .video-container { position: relative; background-color: #000; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.15); }
+        .tab-card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); min-height: 500px; }
+        .area-a { background: #eef2f5; border: 2px dashed #bdc3c7; border-radius: 10px; padding: 15px; min-height: 100px; }
+        .area-b { background: #d4edda; border: 2px solid #c3e6cb; border-radius: 10px; padding: 15px; color: #155724; }
+        .table-scroll { max-height: 200px; overflow-y: auto; }
+        .nav-pills .nav-link.active { background-color: #0d6efd; font-weight: bold; }
+    </style>
+</head>
+<body class="bg-light">
+
+<div class="container mt-4 mb-5">
+    <h2 class="text-center mb-4 fw-bold text-primary">Hệ Thống Dịch Ngôn Ngữ Ký Hiệu</h2>
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="video-container">
+                <img src="{{ url_for('video_feed') }}" class="w-100 h-auto d-block mx-auto" alt="Video Feed">
+            </div>
+            <div class="text-center mt-3">
+                <span class="badge bg-dark fs-6">AI đang thấy: <span id="raw_result" class="text-warning">No Hand</span></span>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            
+            <ul class="nav nav-pills mb-3 nav-justified" id="pills-tab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="pills-test-tab" data-bs-toggle="pill" data-bs-target="#pills-test" type="button" role="tab">🔍 Chế độ Nhận diện</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="pills-train-tab" data-bs-toggle="pill" data-bs-target="#pills-train" type="button" role="tab">🛠️ Chế độ Học (Train)</button>
+                </li>
+            </ul>
+
+            <div class="tab-content tab-card" id="pills-tabContent">
+                
+                <div class="tab-pane fade show active" id="pills-test" role="tabpanel">
+                    
+                    <h6 class="text-secondary fw-bold">KHU VỰC A: Câu đang nhập</h6>
+                    <div class="area-a mb-3">
+                        <div id="full_sentence" class="fs-3 fw-bold text-primary">...</div>
+                        <div class="mt-2 small text-muted">
+                            Chữ đang giữ: <strong id="current_char" class="text-danger fs-5">--</strong>
+                        </div>
+                    </div>
+
+                    <h6 class="text-secondary fw-bold">KHU VỰC B: Câu vừa lưu trước đó</h6>
+                    <div class="area-b mb-4">
+                        <div id="last_saved_sentence" class="fs-4 fw-bold">Chưa có dữ liệu</div>
+                    </div>
+
+                    <hr>
+
+                    <h6 class="text-secondary fw-bold">KHU VỰC X: Xem Database</h6>
+                    <select class="form-select mb-2 bg-light" id="db_select_x" onchange="loadDatabaseTable('x')">
+                        <option value="history">📖 Bảng: Lịch sử câu nói (History)</option>
+                        <option value="users">👤 Bảng: Người dùng (Users)</option>
+                        <option value="signdata">🖐️ Bảng: Ký hiệu (SignData)</option>
+                    </select>
+                    <div class="table-scroll" id="table_container_x">
+                        </div>
+                </div>
+
+
+                <div class="tab-pane fade" id="pills-train" role="tabpanel">
+                    
+                    <div class="alert alert-warning border-0 shadow-sm">
+                        <h5 class="alert-heading fw-bold">Thu thập mẫu mới</h5>
+                        <p class="small mb-2">Nhập nhãn và bấm nút để lưu tọa độ bàn tay vào file CSV.</p>
+                        <div class="input-group mb-3">
+                            <span class="input-group-text bg-dark text-white border-0">Nhãn:</span>
+                            <input type="text" id="label-name" class="form-control" placeholder="Ví dụ: A, B, del, space...">
+                        </div>
+                        <button onclick="captureLandmarks()" class="btn btn-warning w-100 fw-bold shadow-sm">
+                            📸 Chụp & Lưu tọa độ
+                        </button>
+                        <p id="status-msg" class="mt-2 mb-0 small text-center text-danger fw-bold"></p>
+                    </div>
+
+                    <hr>
+
+                    <h6 class="text-secondary fw-bold mt-4">KHU VỰC Y: Xem Database</h6>
+                    <select class="form-select mb-2 bg-light" id="db_select_y" onchange="loadDatabaseTable('y')">
+                        <option value="history">📖 Bảng: Lịch sử thu thập (History)</option>
+                        <option value="users">👤 Bảng: Người dùng (Users)</option>
+                        <option value="signdata">🖐️ Bảng: Ký hiệu (SignData)</option>
+                    </select>
+                    <div class="table-scroll" id="table_container_y">
+                         </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- LOGIC CẬP NHẬT TRẠNG THÁI (KHU VỰC A) ---
+    function updateStatus() {
+        fetch('/get_status')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('current_char').innerText = data.current_char || "--";
+                document.getElementById('full_sentence').innerText = data.full_sentence || "Đang chờ...";
+                document.getElementById('raw_result').innerText = data.raw_result;
+            });
+    }
+    setInterval(updateStatus, 200); // Tốc độ cập nhật nhanh hơn (0.2s)
+
+    // --- LOGIC THU THẬP DỮ LIỆU (TAB TRAIN) ---
+    function captureLandmarks() {
+        let label = document.getElementById('label-name').value;
+        if (!label) {
+            alert("Vui lòng nhập nhãn trước khi chụp!");
+            return;
+        }
+        fetch('/collect_data', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ label: label })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === "success") {
+                document.getElementById('status-msg').innerText = `✅ Đã lưu mẫu cho nhãn: [${label}]`;
+                document.getElementById('status-msg').className = "mt-2 mb-0 small text-center text-success fw-bold";
+            } else {
+                document.getElementById('status-msg').innerText = "❌ Lỗi: Không tìm thấy tay!";
+                document.getElementById('status-msg').className = "mt-2 mb-0 small text-center text-danger fw-bold";
+            }
+        });
+    }
+
+    // --- LOGIC LOAD DATABASE (KHU VỰC X & Y VÀ KHU VỰC B) ---
+    function loadDatabaseTable(area) {
+        // area = 'x' (Tab Test) hoặc 'y' (Tab Train)
+        let selectId = 'db_select_' + area;
+        let containerId = 'table_container_' + area;
+        let tableType = document.getElementById(selectId).value;
+
+        if (tableType === 'history') {
+            fetch('/get_history_list')
+                .then(response => response.json())
+                .then(data => {
+                    // 1. Tạo bảng hiển thị
+                    let html = '<table class="table table-sm table-hover mb-0"><thead class="table-light"><tr><th>ID</th><th>Nội dung</th><th>Thời gian</th></tr></thead><tbody>';
+                    data.forEach(item => {
+                        html += `<tr><td>${item.id}</td><td><span class="fw-bold">${item.result}</span></td><td><small class="text-muted">${item.time}</small></td></tr>`;
+                    });
+                    html += '</tbody></table>';
+                    document.getElementById(containerId).innerHTML = html;
+
+                    // 2. Cập nhật Khu vực B (Câu vừa lưu) - Lấy phần tử mới nhất đầu tiên trong DB
+                    if (data.length > 0) {
+                        document.getElementById('last_saved_sentence').innerText = data[0].result;
+                    }
+                });
+        } else {
+            // Hiển thị thông báo nếu chọn các bảng chưa có API
+            document.getElementById(containerId).innerHTML = `
+                <div class="alert alert-secondary text-center mt-2 small">
+                    Chưa có dữ liệu hoặc chưa viết API cho bảng <b>${tableType.toUpperCase()}</b>.
+                </div>`;
+        }
+    }
+
+    // Tự động load bảng History cho cả Khu vực X và Y mỗi 2 giây
+    setInterval(() => {
+        loadDatabaseTable('x');
+        loadDatabaseTable('y');
+    }, 2000);
+
+    // Load lần đầu khi vừa mở trang
+    window.onload = () => {
+        loadDatabaseTable('x');
+        loadDatabaseTable('y');
+    };
+</script>
+
+</body>
+</html>
