@@ -1,10 +1,12 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix
 import joblib
 import os
 import math
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 def pre_process_landmarks(landmark_list):
     if not landmark_list: return None
@@ -15,21 +17,27 @@ def pre_process_landmarks(landmark_list):
         temp_list.append(landmark_list[i] - base_x)
         temp_list.append(landmark_list[i+1] - base_y)
 
-    val_x, val_y = temp_list[18], temp_list[19]
-    angle = math.atan2(val_x, -val_y) 
+    final_list = temp_list
 
-    final_list = []
-    c, s = math.cos(-angle), math.sin(-angle)
-    for i in range(0, len(temp_list), 2):
-        x, y = temp_list[i], temp_list[i+1]
-        final_list.append(x * c - y * s)
-        final_list.append(x * s + y * c)
+    def get_dist(p1_idx, p2_idx):
+        x1, y1 = final_list[p1_idx*2], final_list[p1_idx*2+1]
+        x2, y2 = final_list[p2_idx*2], final_list[p2_idx*2+1]
+        return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
-    max_val = max(map(abs, final_list))
+    dists = [
+        get_dist(4, 8),   # Ngón cái - Ngón trỏ
+        get_dist(4, 12),  # Ngón cái - Ngón giữa
+        get_dist(4, 20),  # Ngón cái - Ngón út
+        get_dist(8, 20)   # Ngón trỏ - Ngón út
+    ]
+    
+    final_features = final_list + dists
+
+    max_val = max(map(abs, final_features))
     if max_val > 0:
-        final_list = [n / max_val for n in final_list]
+        final_features = [n / max_val for n in final_features]
         
-    return final_list
+    return final_features
 
 def train():
     csv_path = os.path.join('..', 'data', 'cleaned_data.csv')
@@ -67,6 +75,27 @@ def train():
     model_path = os.path.join(models_dir, 'sign_language_model.pkl')
     joblib.dump(model, model_path)
     print(f"💾 Đã lưu mô hình thành công tại: {model_path}")
+    
+    print("📊 Đang vẽ ma trận nhầm lẫn (Confusion Matrix)...")
+    cm = confusion_matrix(y_test, y_pred)
+    
+    labels = [str(cls) for cls in model.classes_]
+    
+    cm_df = pd.DataFrame(cm, index=labels, columns=labels)
+    
+    plt.figure(figsize=(14, 12))
+    
+    sns.heatmap(cm_df, annot=True, fmt='d', cmap='Blues')
+    
+    plt.title("Ma trận nhầm lẫn (Confusion Matrix)")
+    plt.xlabel('Dự đoán (Predicted)')
+    plt.ylabel('Thực tế (Actual)')
+    
+    cm_path = os.path.join(models_dir, 'confusion_matrix.png')
+    plt.savefig(cm_path)
+    print(f"🖼️ Đã lưu ảnh ma trận nhầm lẫn tại: {cm_path}")
+    
+    plt.show()
 
 if __name__ == "__main__":
     train()

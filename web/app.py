@@ -45,23 +45,34 @@ AUTO_SAVE_FRAMES = 60
 
 def pre_process_landmarks(landmark_list):
     if not landmark_list: return None
+    
     base_x, base_y = landmark_list[0], landmark_list[1]
     temp_list = []
     for i in range(0, len(landmark_list), 3):
         temp_list.append(landmark_list[i] - base_x)
         temp_list.append(landmark_list[i+1] - base_y)
-    val_x, val_y = temp_list[18], temp_list[19]
-    angle = math.atan2(val_x, -val_y) 
-    final_list = []
-    c, s = math.cos(-angle), math.sin(-angle)
-    for i in range(0, len(temp_list), 2):
-        x, y = temp_list[i], temp_list[i+1]
-        final_list.append(x * c - y * s)
-        final_list.append(x * s + y * c)
-    max_val = max(map(abs, final_list))
+
+    final_list = temp_list
+
+    def get_dist(p1_idx, p2_idx):
+        x1, y1 = final_list[p1_idx*2], final_list[p1_idx*2+1]
+        x2, y2 = final_list[p2_idx*2], final_list[p2_idx*2+1]
+        return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+
+    dists = [
+        get_dist(4, 8),   # Ngón cái - Ngón trỏ
+        get_dist(4, 12),  # Ngón cái - Ngón giữa
+        get_dist(4, 20),  # Ngón cái - Ngón út
+        get_dist(8, 20)   # Ngón trỏ - Ngón út
+    ]
+    
+    final_features = final_list + dists
+
+    max_val = max(map(abs, final_features))
     if max_val > 0:
-        final_list = [n / max_val for n in final_list]
-    return final_list
+        final_features = [n / max_val for n in final_features]
+        
+    return final_features
 
 def gen_frames():
     global last_landmarks, current_result, full_sentence
