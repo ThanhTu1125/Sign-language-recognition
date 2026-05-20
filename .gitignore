@@ -1,10 +1,10 @@
-# Bỏ qua thư mục dữ liệu khổng lồ
 data/
-# Bỏ qua môi trường ảo
+
 venv/
 .venv/
-# Bỏ qua file mô hình nặng
+
 models/*.pkl
-# Bỏ qua các file rác của Python
+!models/sign_language_model.pkl
+
 __pycache__/
 *.pyc
