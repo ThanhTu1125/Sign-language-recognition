@@ -47,8 +47,10 @@ def pre_process_landmarks(landmark_list):
 
 def batch_extract():
     detector = HandDetector()
-    train_dir = os.path.join('..', 'data', 'asl_alphabet_train_tus')
-    output_file = os.path.join('..', 'data', 'hand_data.csv')
+    # train_dir = os.path.join('..', 'data', 'asl_alphabet_train_tus')
+    # output_file = os.path.join('..', 'data', 'hand_data.csv')
+    train_dir = os.path.join('..', 'data', 'asl_alphabet_train_J_N_M_O_U_V_Z')
+    output_file = os.path.join('..', 'data', 'hand_data_J_N_M_O_U_V_Z.csv')
 
     if not os.path.exists(train_dir):
         print(f"❌ Không tìm thấy thư mục dữ liệu tại: {train_dir}")

@@ -43,6 +43,22 @@ last_detected_char = None
 CONFIRM_FRAMES = 25        
 AUTO_SAVE_FRAMES = 60    
 
+# ==========================================
+# 1. HÀM MẮT THẦN (XỬ LÝ ÁNH SÁNG CLAHE)
+# ==========================================
+def enhance_image_for_mediapipe(img):
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+    cl = clahe.apply(l)
+    limg = cv2.merge((cl, a, b))
+    enhanced_img = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+    final_img = cv2.bilateralFilter(enhanced_img, 9, 75, 75)
+    return final_img
+
+# ==========================================
+# 2. HÀM TIỀN XỬ LÝ TỌA ĐỘ (46 ĐẶC TRƯNG)
+# ==========================================
 def pre_process_landmarks(landmark_list):
     if not landmark_list: return None
     
@@ -81,6 +97,9 @@ def gen_frames():
     while True:
         success, frame = camera.read()
         if not success: break
+        
+        # --- BẬT MẮT THẦN TRƯỚC KHI ĐƯA CHO MEDIAPIPE ---
+        frame = enhance_image_for_mediapipe(frame)
         
         frame, landmarks = detector.find_hand_landmarks(frame)
         last_landmarks = landmarks 
@@ -158,7 +177,6 @@ def get_status():
 
 @app.route('/control', methods=['POST'])
 def control():
-    # Đã xóa current_char_buffer khỏi khai báo global
     global full_sentence
     action = request.json.get('action')
     if action == 'clear':

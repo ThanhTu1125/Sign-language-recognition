@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 def augment_left_hand():
     # Trỏ vào thư mục chứa dữ liệu gốc
-    dataset_dir = os.path.join('..', 'data', 'asl_alphabet_train_tus')
+    dataset_dir = os.path.join('..', 'data', 'asl_alphabet_train_J_N_M_O_U_V_Z')
     
     if not os.path.exists(dataset_dir):
         print("❌ Không tìm thấy thư mục dữ liệu!")
