@@ -38,7 +38,7 @@ current_result = "No Hand"
 frames_held = 0            
 no_hand_frames = 0         
 last_detected_char = None  
-CONFIRM_FRAMES = 10        # ĐÃ GIẢM: Giữ tay ổn định trong khoảng 10 frame (thay vì 15) là chốt chữ
+CONFIRM_FRAMES = 20       
 AUTO_SAVE_FRAMES = 30    
 
 # ==========================================
