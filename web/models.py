@@ -26,12 +26,4 @@ class SignData(db.Model):
     sample_image_path = db.Column(db.String(255)) 
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
 
-class SignData1(db.Model):
-    __tablename__ = 'signdata' 
-    id = db.Column(db.Integer, primary_key=True)
-    sign_name = db.Column(db.String(50), nullable=False)
-    description = db.Column(db.Text)
-    
-    sample_image_path = db.Column(db.String(255)) 
-    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     
