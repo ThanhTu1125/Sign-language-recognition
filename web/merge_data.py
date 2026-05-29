@@ -5,7 +5,7 @@ def merge_csv_files():
     data_dir = os.path.join('..', 'data')
     output_file = os.path.join(data_dir, 'hand_data_all.csv')
     
-    files_to_merge = ['hand_data.csv', 'hand_data_web_1.csv','hand_data_web.csv']
+    files_to_merge = ['hand_data.csv','hand_data_web.csv']
     
     combined_data = []
     

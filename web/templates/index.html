@@ -6,6 +6,7 @@
     <title>Hệ thống Nhận diện Ngôn ngữ Ký hiệu</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .video-container { position: relative; background-color: #000; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.15); }
@@ -19,7 +20,14 @@
 <body class="bg-light">
 
 <div class="container mt-4 mb-5">
-    <h2 class="text-center mb-4 fw-bold text-primary">Hệ Thống Dịch Ngôn Ngữ Ký Hiệu</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-primary m-0">Hệ Thống Dịch Ngôn Ngữ Ký Hiệu</h2>
+        <div class="bg-white px-3 py-2 rounded shadow-sm border">
+            Xin chào, <strong class="text-danger">{{ session.get('username', 'Khách') }}</strong> 
+            <span class="badge bg-secondary text-capitalize ms-1">{{ session.get('role', 'user') }}</span>
+            <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-danger ms-3 fw-bold">🚪 Đăng xuất</a>
+        </div>
+    </div>
 
     <div class="row g-4">
         <div class="col-lg-6">
@@ -38,8 +46,13 @@
                     <button class="nav-link active" id="pills-test-tab" data-bs-toggle="pill" data-bs-target="#pills-test" type="button" role="tab">🔍 Chế độ Nhận diện</button>
                 </li>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="pills-practice-tab" data-bs-toggle="pill" data-bs-target="#pills-practice" type="button" role="tab">🎓 Thực hành</button>
+                </li>
+                {% if session.get('role') == 'admin' %}
+                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="pills-train-tab" data-bs-toggle="pill" data-bs-target="#pills-train" type="button" role="tab">🛠️ Chế độ Học (Train)</button>
                 </li>
+                {% endif %}
             </ul>
 
             <div class="tab-content tab-card" id="pills-tabContent">
@@ -71,7 +84,22 @@
                         </div>
                 </div>
 
+                <div class="tab-pane fade" id="pills-practice" role="tabpanel">
+                    <div class="text-center p-4 mt-3 rounded shadow-sm bg-white border">
+                        <h4 class="text-secondary mb-3">Hãy đưa tay lên và làm ký hiệu chữ:</h4>
+                        <div class="display-1 fw-bold text-primary mb-4" id="target_letter" style="font-size: 6rem;">?</div>
+                        
+                        <div class="alert alert-secondary fs-5" id="practice_status">
+                            Bấm "Bắt đầu" để hệ thống ra đề cho bạn!
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button class="btn btn-lg btn-success me-2" onclick="startPractice()">▶️ Bắt đầu / Đổi chữ</button>
+                        </div>
+                    </div>
+                </div>
 
+                {% if session.get('role') == 'admin' %}
                 <div class="tab-pane fade" id="pills-train" role="tabpanel">
                     
                     <div class="alert alert-warning border-0 shadow-sm">
@@ -96,28 +124,77 @@
                         <option value="signdata">🖐️ Bảng: Ký hiệu (SignData)</option>
                     </select>
                     <div class="table-scroll" id="table_container_y">
-                         </div>
+                    </div>
 
                 </div>
+                {% endif %}
             </div>
+
         </div>
     </div>
 </div>
 
 <script>
-    // --- LOGIC CẬP NHẬT TRẠNG THÁI (KHU VỰC A) ---
+    const practiceVocabulary = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'X', 'Y'];
+    let currentTarget = '';
+    let isPracticing = false;
+
+    function startPractice() {
+        // Chọn ngẫu nhiên 1 chữ cái
+        let randomIndex = Math.floor(Math.random() * practiceVocabulary.length);
+        currentTarget = practiceVocabulary[randomIndex];
+        
+        // Cập nhật Giao diện
+        document.getElementById('target_letter').innerText = currentTarget;
+        document.getElementById('practice_status').className = "alert alert-warning fs-5 fw-bold";
+        document.getElementById('practice_status').innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang chờ nhận diện...';
+        isPracticing = true;
+    }
+
     function updateStatus() {
         fetch('/get_status')
             .then(response => response.json())
             .then(data => {
+                // --- Cập nhật Khu vực A (Tab Nhận diện) ---
                 document.getElementById('current_char').innerText = data.current_char || "--";
                 document.getElementById('full_sentence').innerText = data.full_sentence || "Đang chờ...";
                 document.getElementById('raw_result').innerText = data.raw_result;
-            });
-    }
-    setInterval(updateStatus, 200); // Tốc độ cập nhật nhanh hơn (0.2s)
 
-    // --- LOGIC THU THẬP DỮ LIỆU (TAB TRAIN) ---
+                // --- Cập nhật Tab Thực hành ---
+                let practiceTab = document.getElementById('pills-practice-tab');
+                let isPracticeTabActive = practiceTab ? practiceTab.classList.contains('active') : false;
+                
+                if (isPracticeTabActive && isPracticing) {
+                    let detectedChar = data.current_char;
+                    
+                    // Nếu AI nhận diện đúng chữ mục tiêu
+                    if (detectedChar === currentTarget) {
+                        isPracticing = false; // Tạm dừng nhận diện để chúc mừng
+                        
+                        // Đổi màu thông báo
+                        document.getElementById('practice_status').className = "alert alert-success fs-4 fw-bold text-success";
+                        document.getElementById('practice_status').innerText = "🎉 CHÍNH XÁC! TUYỆT VỜI!";
+                        
+                        // Gọi hiệu ứng pháo hoa (Nếu thư viện đã load)
+                        if (typeof confetti === "function") {
+                            confetti({
+                                particleCount: 150,
+                                spread: 80,
+                                origin: { y: 0.6 }
+                            });
+                        }
+
+                        // Đợi 3 giây rồi tự động chuyển sang chữ khác
+                        setTimeout(startPractice, 3000);
+                    }
+                }
+            })
+            .catch(err => console.log("Lỗi cập nhật trạng thái:", err));
+    }
+    
+    // Chạy vòng lặp cập nhật liên tục mỗi 0.2s
+    setInterval(updateStatus, 200);
+
     function captureLandmarks() {
         let label = document.getElementById('label-name').value;
         if (!label) {
@@ -135,42 +212,50 @@
                 document.getElementById('status-msg').innerText = `✅ Đã lưu mẫu cho nhãn: [${label}]`;
                 document.getElementById('status-msg').className = "mt-2 mb-0 small text-center text-success fw-bold";
             } else {
-                document.getElementById('status-msg').innerText = "❌ Lỗi: Không tìm thấy tay!";
+                document.getElementById('status-msg').innerText = "❌ Lỗi: Không tìm thấy tay hoặc không đủ quyền!";
                 document.getElementById('status-msg').className = "mt-2 mb-0 small text-center text-danger fw-bold";
             }
         });
     }
 
-    // --- LOGIC LOAD DATABASE (KHU VỰC X & Y VÀ KHU VỰC B) ---
     function loadDatabaseTable(area) {
         // area = 'x' (Tab Test) hoặc 'y' (Tab Train)
         let selectId = 'db_select_' + area;
         let containerId = 'table_container_' + area;
-        let tableType = document.getElementById(selectId).value;
+        
+        let selectElement = document.getElementById(selectId);
+        if (!selectElement) return; // Bỏ qua nếu không tìm thấy giao diện
+        let tableType = selectElement.value;
 
         if (tableType === 'history') {
             fetch('/get_history_list')
                 .then(response => response.json())
                 .then(data => {
-                    // 1. Tạo bảng hiển thị
+                    // Tạo bảng hiển thị
                     let html = '<table class="table table-sm table-hover mb-0"><thead class="table-light"><tr><th>ID</th><th>Nội dung</th><th>Thời gian</th></tr></thead><tbody>';
                     data.forEach(item => {
                         html += `<tr><td>${item.id}</td><td><span class="fw-bold">${item.result}</span></td><td><small class="text-muted">${item.time}</small></td></tr>`;
                     });
                     html += '</tbody></table>';
-                    document.getElementById(containerId).innerHTML = html;
+                    
+                    let container = document.getElementById(containerId);
+                    if(container) container.innerHTML = html;
 
-                    // 2. Cập nhật Khu vực B (Câu vừa lưu) - Lấy phần tử mới nhất đầu tiên trong DB
-                    if (data.length > 0) {
-                        document.getElementById('last_saved_sentence').innerText = data[0].result;
+                    // Cập nhật Khu vực B (Câu vừa lưu)
+                    let lastSavedContainer = document.getElementById('last_saved_sentence');
+                    if (data.length > 0 && lastSavedContainer) {
+                        lastSavedContainer.innerText = data[0].result;
                     }
                 });
         } else {
             // Hiển thị thông báo nếu chọn các bảng chưa có API
-            document.getElementById(containerId).innerHTML = `
+            let container = document.getElementById(containerId);
+            if(container) {
+                container.innerHTML = `
                 <div class="alert alert-secondary text-center mt-2 small">
                     Chưa có dữ liệu hoặc chưa viết API cho bảng <b>${tableType.toUpperCase()}</b>.
                 </div>`;
+            }
         }
     }
 

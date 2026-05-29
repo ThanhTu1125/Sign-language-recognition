@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Đăng ký tài khoản</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f4f7f6; display: flex; align-items: center; justify-content: center; height: 100vh; }
+        .auth-card { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 100%; max-width: 400px; }
+    </style>
+</head>
+<body>
+<div class="auth-card">
+    <h3 class="text-center fw-bold text-success mb-4">ĐĂNG KÝ TÀI KHOẢN</h3>
+    {% if error %}
+        <div class="alert alert-danger p-2 small text-center">{{ error }}</div>
+    {% endif %}
+    <form method="POST">
+        <div class="mb-3">
+            <label class="form-label">Tên đăng nhập</label>
+            <input type="text" name="username" class="form-control" required placeholder="Tạo tài khoản">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input type="email" name="email" class="form-control" required placeholder="ví_dụ@gmail.com">
+        </div>
+        <div class="mb-4">
+            <label class="form-label">Mật khẩu</label>
+            <input type="password" name="password" class="form-control" required placeholder="Tạo mật khẩu bảo mật">
+        </div>
+        <button type="submit" class="btn btn-success w-100 fw-bold mb-3">Đăng Ký</button>
+        <p class="text-center small text-muted">Đã có tài khoản? <a href="{{ url_for('login') }}">Đăng nhập</a></p>
+    </form>
+</div>
+</body>
+</html>

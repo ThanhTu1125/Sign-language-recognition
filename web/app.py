@@ -1,4 +1,5 @@
-from flask import Flask, render_template, Response, request, jsonify
+from flask import Flask, render_template, Response, request, jsonify, session, redirect, url_for
+from werkzeug.security import generate_password_hash, check_password_hash
 from detector import HandDetector
 from collections import deque, Counter
 import cv2
@@ -11,6 +12,8 @@ from models import db, User, History
 
 app = Flask(__name__)
 
+# CẤU HÌNH BẢO MẬT & DATABASE
+app.secret_key = 'sign_language_super_secret_key_123' # Key dùng để mã hóa phiên đăng nhập
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://root:@localhost/sign_language_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
@@ -18,6 +21,7 @@ db.init_app(app)
 detector = HandDetector()
 camera = cv2.VideoCapture(0)
 
+# Load Model
 MODEL_PATH = os.path.join('..', 'models', 'sign_language_model.pkl')
 model = None
 if os.path.exists(MODEL_PATH):
@@ -51,7 +55,7 @@ def enhance_image_for_mediapipe(img):
     return final_img
 
 # ==========================================
-# 2. HÀM TIỀN XỬ LÝ TỌA ĐỘ (46 ĐẶC TRƯNG)
+# 2. HÀM TIỀN XỬ LÝ TỌA ĐỘ (51 ĐẶC TRƯNG CÓ GÓC)
 # ==========================================
 def pre_process_landmarks(landmark_list):
     if not landmark_list: return None
@@ -97,7 +101,19 @@ def pre_process_landmarks(landmark_list):
         
     return final_features
 
-def gen_frames():
+def save_to_db(text, user_id):
+    with app.app_context():
+        try:
+            new_entry = History(user_id=user_id, result_text=text)
+            db.session.add(new_entry)
+            db.session.commit()
+        except Exception as e:
+            print(f"Lỗi lưu DB: {e}")
+
+# ==========================================
+# 3. LUỒNG CAMERA NHẬN DIỆN
+# ==========================================
+def gen_frames(current_user_id):
     global last_landmarks, current_result, full_sentence
     global frames_held, no_hand_frames, last_detected_char
     
@@ -105,26 +121,22 @@ def gen_frames():
         success, frame = camera.read()
         if not success: break
         
-        # --- BẬT MẮT THẦN TRƯỚC KHI ĐƯA CHO MEDIAPIPE ---
         frame = enhance_image_for_mediapipe(frame)
-        
         frame, landmarks = detector.find_hand_landmarks(frame)
         last_landmarks = landmarks 
 
         if landmarks and model:
             no_hand_frames = 0
-            
             processed_data = pre_process_landmarks(landmarks[:63])
             try:
                 probabilities = model.predict_proba([processed_data])[0]
-                max_prob = max(probabilities) * 100 # Chuyển thành phần trăm
-                detected = model.classes_[probabilities.argmax()] # Lấy nhãn có % cao nhất
+                max_prob = max(probabilities) * 100 
+                detected = model.classes_[probabilities.argmax()] 
                 
                 current_result = f"{detected} ({max_prob:.1f}%)"
 
                 if max_prob >= 65.0:
                     prediction_window.append(str(detected))
-                    
                     if len(prediction_window) == prediction_window.maxlen:
                         most_common = Counter(prediction_window).most_common(1)
                         stable_detected = most_common[0][0]
@@ -148,7 +160,6 @@ def gen_frames():
 
             except Exception as e:
                 current_result = "Lỗi nhận diện"
-                print(f"Lỗi dự đoán: {e}")
                 
         elif not landmarks:
             prediction_window.clear()
@@ -159,30 +170,79 @@ def gen_frames():
             if full_sentence.strip(): 
                 no_hand_frames += 1
                 if no_hand_frames >= AUTO_SAVE_FRAMES:
-                    save_to_db(full_sentence.strip())
+                    # Truyền ID của người đang đăng nhập vào để lưu
+                    save_to_db(full_sentence.strip(), current_user_id)
                     print(f"💾 Tự động lưu và kết thúc câu: {full_sentence}")
-                    full_sentence = ""     # Xóa màn hình
-                    no_hand_frames = 0     # Reset
+                    full_sentence = ""     
+                    no_hand_frames = 0     
 
         ret, buffer = cv2.imencode('.jpg', frame)
         yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
 
-def save_to_db(text):
-    with app.app_context():
-        try:
-            new_entry = History(user_id=1, result_text=text)
-            db.session.add(new_entry)
-            db.session.commit()
-        except Exception as e:
-            print(f"Lỗi lưu DB: {e}")
+# ==========================================
+# 4. HỆ THỐNG ĐĂNG KÝ / ĐĂNG NHẬP
+# ==========================================
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        if not username or not email or not password:
+            return render_template('register.html', error="Vui lòng điền đầy đủ thông tin!")
+        
+        if User.query.filter_by(username=username).first() or User.query.filter_by(email=email).first():
+            return render_template('register.html', error="Tên đăng nhập hoặc Email đã tồn tại!")
+        
+        # Lúc này Pylance đã biết chắc chắn password là 'str'
+        hashed_password = generate_password_hash(password)
+        new_user = User(username=username, email=email, password_hash=hashed_password, role='user')
+        
+        db.session.add(new_user)
+        db.session.commit()
+        return redirect(url_for('login'))
+        
+    return render_template('register.html')
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if not username or not password:
+            return render_template('login.html', error="Vui lòng nhập tài khoản và mật khẩu!")
+        
+        user = User.query.filter_by(username=username).first()
+        
+        if user and check_password_hash(user.password_hash, password):
+            session['user_id'] = user.id
+            session['username'] = user.username
+            session['role'] = user.role
+            return redirect(url_for('index'))
+            
+        return render_template('login.html', error="Sai tài khoản hoặc mật khẩu!")
+        
+    return render_template('login.html')
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+# ==========================================
+# 5. CÁC API & ROUTE GIAO DIỆN CHÍNH
+# ==========================================
 @app.route('/')
 def index():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
     return render_template('index.html')
 
 @app.route('/video_feed')
 def video_feed():
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    current_user_id = session.get('user_id', 1)
+    return Response(gen_frames(current_user_id), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/get_status')
 def get_status():
@@ -203,16 +263,18 @@ def control():
     elif action == 'space':
         full_sentence += " "
     elif action == 'save':
-        if full_sentence.strip():
-            save_to_db(full_sentence)
+        if full_sentence.strip() and 'user_id' in session:
+            save_to_db(full_sentence, session['user_id'])
             full_sentence = ""
     return jsonify({"status": "success"})
 
 @app.route('/save_history', methods=['POST'])
 def save_history():
+    if 'user_id' not in session:
+        return jsonify({"status": "error", "message": "Chưa đăng nhập"})
     data = request.json
     try:
-        new_entry = History(user_id=1, result_text=data['text'])
+        new_entry = History(user_id=session['user_id'], result_text=data['text'])
         db.session.add(new_entry)
         db.session.commit()
         return jsonify({"status": "success"})
@@ -221,7 +283,15 @@ def save_history():
 
 @app.route('/get_history_list')
 def get_history_list():
-    histories = History.query.order_by(History.created_at.desc()).limit(10).all()
+    if 'user_id' not in session:
+        return jsonify([])
+    
+    # Phân quyền hiển thị Database
+    if session.get('role') == 'admin':
+        histories = History.query.order_by(History.created_at.desc()).limit(10).all()
+    else:
+        histories = History.query.filter_by(user_id=session['user_id']).order_by(History.created_at.desc()).limit(10).all()
+        
     output = []
     for h in histories:
         output.append({
@@ -231,6 +301,9 @@ def get_history_list():
 
 @app.route('/collect_data', methods=['POST'])
 def collect_data():
+    if session.get('role') != 'admin':
+        return jsonify({"status": "error", "message": "Không đủ quyền"})
+        
     global last_landmarks
     data = request.json
     label = data.get('label')
@@ -253,10 +326,21 @@ def collect_data():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        if not User.query.get(1):
-            admin = User(id=1, username='admin', email='admin@gmail.com', password_hash='123')
+        
+        # Lấy tài khoản admin ra kiểm tra
+        admin = User.query.filter_by(username='admin').first()
+        
+        if not admin:
+            hashed_pw = generate_password_hash('123')
+            admin = User(username='admin', email='admin@gmail.com', password_hash=hashed_pw, role='admin')
             db.session.add(admin)
             db.session.commit()
-            print("✅ Đã tạo User mặc định (ID: 1)")
+            print("✅ Đã tạo User Admin mặc định (Tài khoản: admin / Pass: 123)")
+            
+        elif admin.password_hash == '123':
+            admin.password_hash = generate_password_hash('123')
+            db.session.commit()
+            print("✅ Đã tự động băm lại mật khẩu cho tài khoản Admin cũ!")
+
         print("✅ Database đã sẵn sàng!")
     app.run(debug=True)
