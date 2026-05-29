@@ -13,7 +13,7 @@ from models import db, User, History, SignData
 app = Flask(__name__)
 
 # CẤU HÌNH BẢO MẬT & DATABASE
-app.secret_key = 'sign_language_super_secret_key_123' # Key dùng để mã hóa phiên đăng nhập
+app.secret_key = 'sign_language_super_secret_key_123' 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://root:@localhost/sign_language_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
@@ -30,15 +30,15 @@ if os.path.exists(MODEL_PATH):
 else:
     print("⚠️ CẢNH BÁO: Không tìm thấy file mô hình!")
 
-prediction_window = deque(maxlen=10)
-full_sentence = ""         # Câu hoàn chỉnh
+prediction_window = deque(maxlen=10) # Bộ đệm lọc nhiễu 10 khung hình
+full_sentence = ""         
 last_landmarks = []
 current_result = "No Hand"
 
 frames_held = 0            
 no_hand_frames = 0         
 last_detected_char = None  
-CONFIRM_FRAMES = 15        
+CONFIRM_FRAMES = 10        # ĐÃ GIẢM: Giữ tay ổn định trong khoảng 10 frame (thay vì 15) là chốt chữ
 AUTO_SAVE_FRAMES = 30    
 
 # ==========================================
@@ -79,18 +79,18 @@ def pre_process_landmarks(landmark_list):
         return math.atan2(y2 - y1, x2 - x1)
 
     dists = [
-        get_dist(4, 8),   # Ngón cái - Ngón trỏ
-        get_dist(4, 12),  # Ngón cái - Ngón giữa
-        get_dist(4, 20),  # Ngón cái - Ngón út
-        get_dist(8, 20)   # Ngón trỏ - Ngón út
+        get_dist(4, 8),   
+        get_dist(4, 12),  
+        get_dist(4, 20),  
+        get_dist(8, 20)   
     ]
     
     angles = [
-        get_angle(0, 4),  # Góc ngón cái
-        get_angle(0, 8),  # Góc ngón trỏ
-        get_angle(0, 12), # Góc ngón giữa
-        get_angle(0, 16), # Góc ngón áp út
-        get_angle(0, 20)  # Góc ngón út
+        get_angle(0, 4),  
+        get_angle(0, 8),  
+        get_angle(0, 12), 
+        get_angle(0, 16), 
+        get_angle(0, 20)  
     ]
     
     final_features = final_list + dists + angles
@@ -133,30 +133,31 @@ def gen_frames(current_user_id):
                 max_prob = max(probabilities) * 100 
                 detected = model.classes_[probabilities.argmax()] 
                 
+                # Vẫn hiển thị % lên màn hình để biết AI đang nghĩ gì
                 current_result = f"{detected} ({max_prob:.1f}%)"
 
-                if max_prob >= 65.0:
-                    prediction_window.append(str(detected))
-                    if len(prediction_window) == prediction_window.maxlen:
-                        most_common = Counter(prediction_window).most_common(1)
-                        stable_detected = most_common[0][0]
+                # ĐÃ LOẠI BỎ IF max_prob >= 65.0
+                # Chấp nhận mọi kết quả cao nhất, bộ lọc sẽ dùng thời gian giữ tay để quyết định
+                prediction_window.append(str(detected))
+                if len(prediction_window) == prediction_window.maxlen:
+                    most_common = Counter(prediction_window).most_common(1)
+                    stable_detected = most_common[0][0]
 
-                        if stable_detected == last_detected_char:
-                            frames_held += 1
-                            if frames_held == CONFIRM_FRAMES:
-                                if stable_detected == 'space':
-                                    full_sentence += " "
-                                elif stable_detected == 'del':
-                                    full_sentence = full_sentence[:-1]
-                                elif stable_detected not in ['nothing', 'No Hand']:
-                                    full_sentence += stable_detected
-                                print(f"📝 Cập nhật câu: {full_sentence}")
-                        else:
-                            last_detected_char = stable_detected
-                            frames_held = 1
-                else:
-                    frames_held = 0
-                    last_detected_char = None
+                    if stable_detected == last_detected_char:
+                        frames_held += 1
+                        if frames_held == CONFIRM_FRAMES:
+                            if stable_detected == 'space':
+                                full_sentence += " "
+                            elif stable_detected == 'del':
+                                full_sentence = full_sentence[:-1]
+                            elif stable_detected not in ['nothing', 'No Hand']:
+                                full_sentence += stable_detected
+                            print(f"📝 Cập nhật câu: {full_sentence}")
+                            # Reset đếm để tránh bị gõ liên tiếp 1 chữ quá nhanh
+                            frames_held = 0 
+                    else:
+                        last_detected_char = stable_detected
+                        frames_held = 1
 
             except Exception as e:
                 current_result = "Lỗi nhận diện"
@@ -170,7 +171,6 @@ def gen_frames(current_user_id):
             if full_sentence.strip(): 
                 no_hand_frames += 1
                 if no_hand_frames >= AUTO_SAVE_FRAMES:
-                    # Truyền ID của người đang đăng nhập vào để lưu
                     save_to_db(full_sentence.strip(), current_user_id)
                     print(f"💾 Tự động lưu và kết thúc câu: {full_sentence}")
                     full_sentence = ""     
@@ -195,7 +195,6 @@ def register():
         if User.query.filter_by(username=username).first() or User.query.filter_by(email=email).first():
             return render_template('register.html', error="Tên đăng nhập hoặc Email đã tồn tại!")
         
-        # Lúc này Pylance đã biết chắc chắn password là 'str'
         hashed_password = generate_password_hash(password)
         new_user = User(username=username, email=email, password_hash=hashed_password, role='user')
         
@@ -287,7 +286,6 @@ def get_history_list():
     if 'user_id' not in session:
         return jsonify([])
     
-    # Phân quyền hiển thị Database
     if session.get('role') == 'admin':
         histories = History.query.order_by(History.created_at.desc()).limit(10).all()
     else:
@@ -358,7 +356,6 @@ if __name__ == '__main__':
 
         # 2. TỰ ĐỘNG NẠP 28 DỮ LIỆU TỪ ĐIỂN
         if not SignData.query.first():
-            # 26 chữ cái + space + del = 28 classes
             vocab = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'space', 'del']
             admin_id = admin.id if admin else 1
             
@@ -366,7 +363,7 @@ if __name__ == '__main__':
                 new_sign = SignData(
                     sign_name=label,
                     description=f"Đây là ký hiệu cho: {label}",
-                    sample_image_path=f"{label} (1).jpg", # Định dạng ảnh: Tên (1).jpg
+                    sample_image_path=f"{label} (1).jpg", 
                     created_by=admin_id
                 )
                 db.session.add(new_sign)
