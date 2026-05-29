@@ -8,16 +8,20 @@ class User(db.Model):
     username = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(10), default='user') # user hoặc admin [cite: 35, 39]
+    role = db.Column(db.String(10), default='user')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class History(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    result_text = db.Column(db.Text, nullable=False) # Kết quả nhận diện [cite: 31, 33]
+    result_text = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class SignData(db.Model):
+    __tablename__ = 'signdata' 
     id = db.Column(db.Integer, primary_key=True)
-    sign_name = db.Column(db.String(50), nullable=False) # Tên ký hiệu [cite: 36]
+    sign_name = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text)
+    
+    sample_image_path = db.Column(db.String(255)) 
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
