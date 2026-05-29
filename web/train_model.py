@@ -50,5 +50,14 @@ def train():
     print(f"✅ ĐỘ CHÍNH XÁC CỦA MÔ HÌNH: {accuracy * 100:.2f}%")
     print("-" * 30)
 
+    # THÊM ĐOẠN NÀY VÀO ĐỂ LƯU MODEL
+    models_dir = os.path.join('..', 'models')
+    if not os.path.exists(models_dir):
+        os.makedirs(models_dir)
+        
+    model_path = os.path.join(models_dir, 'sign_language_model.pkl')
+    joblib.dump(model, model_path)
+    print(f"💾 Đã lưu mô hình thành công tại: {model_path}")
+
 if __name__ == "__main__":
     train()
