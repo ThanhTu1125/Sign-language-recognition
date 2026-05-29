@@ -8,7 +8,7 @@ import os
 import joblib
 import math
 from datetime import datetime
-from models import db, User, History
+from models import db, User, History, SignData
 
 app = Flask(__name__)
 
@@ -225,6 +225,7 @@ def login():
         return render_template('login.html', error="Sai tài khoản hoặc mật khẩu!")
         
     return render_template('login.html')
+
 @app.route('/logout')
 def logout():
     session.clear()
@@ -323,11 +324,24 @@ def collect_data():
             
     return jsonify({"status": "success"})
 
+@app.route('/api/dictionary', methods=['GET'])
+def get_dictionary():
+    signs = SignData.query.all()
+    result = []
+    for s in signs:
+        result.append({
+            'id': s.id,
+            'sign_name': s.sign_name,
+            'description': s.description,
+            'image_url': f"/static/images/signs/{s.sample_image_path}" if s.sample_image_path else ""
+        })
+    return jsonify(result)
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         
-        # Lấy tài khoản admin ra kiểm tra
+        # 1. KIỂM TRA TÀI KHOẢN ADMIN
         admin = User.query.filter_by(username='admin').first()
         
         if not admin:
@@ -341,6 +355,23 @@ if __name__ == '__main__':
             admin.password_hash = generate_password_hash('123')
             db.session.commit()
             print("✅ Đã tự động băm lại mật khẩu cho tài khoản Admin cũ!")
+
+        # 2. TỰ ĐỘNG NẠP 28 DỮ LIỆU TỪ ĐIỂN
+        if not SignData.query.first():
+            # 26 chữ cái + space + del = 28 classes
+            vocab = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'space', 'del']
+            admin_id = admin.id if admin else 1
+            
+            for label in vocab:
+                new_sign = SignData(
+                    sign_name=label,
+                    description=f"Đây là ký hiệu cho: {label}",
+                    sample_image_path=f"{label} (1).jpg", # Định dạng ảnh: Tên (1).jpg
+                    created_by=admin_id
+                )
+                db.session.add(new_sign)
+            db.session.commit()
+            print("✅ Đã tự động tạo 28 dữ liệu mẫu cho Từ điển Ký hiệu!")
 
         print("✅ Database đã sẵn sàng!")
     app.run(debug=True)

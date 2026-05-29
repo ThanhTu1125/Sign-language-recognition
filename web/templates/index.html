@@ -67,6 +67,20 @@
                         </div>
                     </div>
 
+                    <hr>
+                    <h6 class="text-secondary fw-bold">📖 TỪ ĐIỂN KÝ HIỆU (HỌC BẰNG HÌNH ẢNH)</h6>
+                    <div class="bg-white p-3 rounded border mb-4 shadow-sm">
+                        <div id="dictionary-buttons" class="d-flex flex-wrap gap-2 mb-3">
+                            <span class="spinner-border spinner-border-sm text-primary"></span> Đang tải từ điển...
+                        </div>
+                        
+                        <div class="text-center bg-light border rounded p-3" id="dictionary-viewer" style="display: none;">
+                            <h3 id="dict-title" class="fw-bold text-success mb-2">Chữ A</h3>
+                            <p id="dict-desc" class="text-muted small mb-2">Mô tả cách làm...</p>
+                            <img id="dict-image" src="" alt="Hình minh họa" class="img-fluid rounded shadow-sm" style="max-height: 250px; object-fit: cover;">
+                        </div>
+                    </div>
+
                     <h6 class="text-secondary fw-bold">KHU VỰC B: Câu vừa lưu trước đó</h6>
                     <div class="area-b mb-4">
                         <div id="last_saved_sentence" class="fs-4 fw-bold">Chưa có dữ liệu</div>
@@ -135,7 +149,7 @@
 </div>
 
 <script>
-    const practiceVocabulary = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'X', 'Y'];
+    const practiceVocabulary = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
     let currentTarget = '';
     let isPracticing = false;
 
@@ -259,6 +273,39 @@
         }
     }
 
+    // --- LOGIC TẢI TỪ ĐIỂN KÝ HIỆU ---
+    function loadDictionary() {
+        fetch('/api/dictionary')
+            .then(response => response.json())
+            .then(data => {
+                let btnContainer = document.getElementById('dictionary-buttons');
+                btnContainer.innerHTML = ''; // Xóa chữ "Đang tải"
+                
+                data.forEach(item => {
+                    // Tạo nút bấm cho từng chữ
+                    let btn = document.createElement('button');
+                    btn.className = 'btn btn-outline-primary btn-sm fw-bold';
+                    btn.innerText = item.sign_name;
+                    
+                    // Xử lý sự kiện khi bấm vào nút
+                    btn.onclick = () => {
+                        document.getElementById('dictionary-viewer').style.display = 'block';
+                        document.getElementById('dict-title').innerText = `Ký hiệu: ${item.sign_name}`;
+                        document.getElementById('dict-desc').innerText = item.description;
+                        
+                        // Cập nhật ảnh, nếu lỗi thì hiện ảnh placeholder
+                        let imgElem = document.getElementById('dict-image');
+                        imgElem.src = item.image_url;
+                        imgElem.onerror = () => {
+                            imgElem.src = 'https://via.placeholder.com/250x250?text=Chưa+có+ảnh';
+                        };
+                    };
+                    btnContainer.appendChild(btn);
+                });
+            })
+            .catch(err => console.log("Lỗi tải từ điển:", err));
+    }
+
     // Tự động load bảng History cho cả Khu vực X và Y mỗi 2 giây
     setInterval(() => {
         loadDatabaseTable('x');
@@ -269,6 +316,7 @@
     window.onload = () => {
         loadDatabaseTable('x');
         loadDatabaseTable('y');
+        loadDictionary(); // Gọi hàm lấy từ điển lúc vừa mở web
     };
 </script>
 
