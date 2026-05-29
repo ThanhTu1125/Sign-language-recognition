@@ -1,14 +1,8 @@
+import os, csv, math, warnings
 import cv2
-import os
-import csv
-import warnings
+import mediapipe as mp
 import math
 from tqdm import tqdm
-try:
-    import mediapipe as mp
-    print(f"✅ MediaPipe đang chạy từ: {mp.__file__}")
-except AttributeError:
-    print("❌ LỖI: Thư viện MediaPipe bị nhận diện sai. Kiểm tra xem có file mediapipe.py nào trong thư mục không!")
 
 from detector import HandDetector
 
@@ -30,6 +24,11 @@ def pre_process_landmarks(landmark_list):
         x2, y2 = final_list[p2_idx*2], final_list[p2_idx*2+1]
         return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
+    def get_angle(p1_idx, p2_idx):
+        x1, y1 = final_list[p1_idx*2], final_list[p1_idx*2+1]
+        x2, y2 = final_list[p2_idx*2], final_list[p2_idx*2+1]
+        return math.atan2(y2 - y1, x2 - x1)
+
     dists = [
         get_dist(4, 8),   # Ngón cái - Ngón trỏ
         get_dist(4, 12),  # Ngón cái - Ngón giữa
@@ -37,7 +36,15 @@ def pre_process_landmarks(landmark_list):
         get_dist(8, 20)   # Ngón trỏ - Ngón út
     ]
     
-    final_features = final_list + dists
+    angles = [
+        get_angle(0, 4),  # Góc ngón cái
+        get_angle(0, 8),  # Góc ngón trỏ
+        get_angle(0, 12), # Góc ngón giữa
+        get_angle(0, 16), # Góc ngón áp út
+        get_angle(0, 20)  # Góc ngón út
+    ]
+    
+    final_features = final_list + dists + angles
 
     max_val = max(map(abs, final_features))
     if max_val > 0:
@@ -47,10 +54,8 @@ def pre_process_landmarks(landmark_list):
 
 def batch_extract():
     detector = HandDetector()
-    # train_dir = os.path.join('..', 'data', 'asl_alphabet_train_tus')
-    # output_file = os.path.join('..', 'data', 'hand_data.csv')
-    train_dir = os.path.join('..', 'data', 'asl_alphabet_train_J_N_M_O_U_V_Z')
-    output_file = os.path.join('..', 'data', 'hand_data_J_N_M_O_U_V_Z.csv')
+    train_dir = os.path.join('..', 'data', 'asl_alphabet_train_tus')
+    output_file = os.path.join('..', 'data', 'hand_data.csv')
 
     if not os.path.exists(train_dir):
         print(f"❌ Không tìm thấy thư mục dữ liệu tại: {train_dir}")

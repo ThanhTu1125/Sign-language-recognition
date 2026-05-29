@@ -7,15 +7,10 @@ import os
 import joblib
 import math
 from datetime import datetime
-
-try:
-    from models import db, User, History
-except ImportError:
-    from .models import db, User, History
+from models import db, User, History
 
 app = Flask(__name__)
 
-# Cấu hình Database
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://root:@localhost/sign_language_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
@@ -23,7 +18,6 @@ db.init_app(app)
 detector = HandDetector()
 camera = cv2.VideoCapture(0)
 
-# Load Model
 MODEL_PATH = os.path.join('..', 'models', 'sign_language_model.pkl')
 model = None
 if os.path.exists(MODEL_PATH):
@@ -40,8 +34,8 @@ current_result = "No Hand"
 frames_held = 0            
 no_hand_frames = 0         
 last_detected_char = None  
-CONFIRM_FRAMES = 25        
-AUTO_SAVE_FRAMES = 60    
+CONFIRM_FRAMES = 15        
+AUTO_SAVE_FRAMES = 30    
 
 # ==========================================
 # 1. HÀM MẮT THẦN (XỬ LÝ ÁNH SÁNG CLAHE)
@@ -75,6 +69,11 @@ def pre_process_landmarks(landmark_list):
         x2, y2 = final_list[p2_idx*2], final_list[p2_idx*2+1]
         return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
+    def get_angle(p1_idx, p2_idx):
+        x1, y1 = final_list[p1_idx*2], final_list[p1_idx*2+1]
+        x2, y2 = final_list[p2_idx*2], final_list[p2_idx*2+1]
+        return math.atan2(y2 - y1, x2 - x1)
+
     dists = [
         get_dist(4, 8),   # Ngón cái - Ngón trỏ
         get_dist(4, 12),  # Ngón cái - Ngón giữa
@@ -82,7 +81,15 @@ def pre_process_landmarks(landmark_list):
         get_dist(8, 20)   # Ngón trỏ - Ngón út
     ]
     
-    final_features = final_list + dists
+    angles = [
+        get_angle(0, 4),  # Góc ngón cái
+        get_angle(0, 8),  # Góc ngón trỏ
+        get_angle(0, 12), # Góc ngón giữa
+        get_angle(0, 16), # Góc ngón áp út
+        get_angle(0, 20)  # Góc ngón út
+    ]
+    
+    final_features = final_list + dists + angles
 
     max_val = max(map(abs, final_features))
     if max_val > 0:
@@ -109,29 +116,39 @@ def gen_frames():
             
             processed_data = pre_process_landmarks(landmarks[:63])
             try:
-                raw_prediction = model.predict([processed_data])[0]
-                prediction_window.append(str(raw_prediction))
-                most_common = Counter(prediction_window).most_common(1)
-                detected = most_common[0][0]
+                probabilities = model.predict_proba([processed_data])[0]
+                max_prob = max(probabilities) * 100 # Chuyển thành phần trăm
+                detected = model.classes_[probabilities.argmax()] # Lấy nhãn có % cao nhất
                 
-                current_result = detected
+                current_result = f"{detected} ({max_prob:.1f}%)"
 
-                if detected == last_detected_char:
-                    frames_held += 1
-                    if frames_held == CONFIRM_FRAMES:
-                        if detected == 'space':
-                            full_sentence += " "
-                        elif detected == 'del':
-                            full_sentence = full_sentence[:-1]
-                        elif detected not in ['nothing', 'No Hand']:
-                            full_sentence += detected
-                        print(f"📝 Cập nhật câu: {full_sentence}")
+                if max_prob >= 65.0:
+                    prediction_window.append(str(detected))
+                    
+                    if len(prediction_window) == prediction_window.maxlen:
+                        most_common = Counter(prediction_window).most_common(1)
+                        stable_detected = most_common[0][0]
+
+                        if stable_detected == last_detected_char:
+                            frames_held += 1
+                            if frames_held == CONFIRM_FRAMES:
+                                if stable_detected == 'space':
+                                    full_sentence += " "
+                                elif stable_detected == 'del':
+                                    full_sentence = full_sentence[:-1]
+                                elif stable_detected not in ['nothing', 'No Hand']:
+                                    full_sentence += stable_detected
+                                print(f"📝 Cập nhật câu: {full_sentence}")
+                        else:
+                            last_detected_char = stable_detected
+                            frames_held = 1
                 else:
-                    last_detected_char = detected
-                    frames_held = 1
+                    frames_held = 0
+                    last_detected_char = None
 
-            except Exception:
+            except Exception as e:
                 current_result = "Lỗi nhận diện"
+                print(f"Lỗi dự đoán: {e}")
                 
         elif not landmarks:
             prediction_window.clear()
